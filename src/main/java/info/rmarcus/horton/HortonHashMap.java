@@ -14,6 +14,8 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	
 	private long primaryBlockGets = 0;
 	private long secondaryBlockGets = 0;
+	
+
 
 	public HortonHashMap(int numBuckets, int bucketCapacity) {
 		init(numBuckets, bucketCapacity);
@@ -87,6 +89,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		// check the primary bucket
 		int primaryBucketIdx = getPrimaryBucket(key);
 		HortonHashBucket<K, V> primaryBucket = buckets[primaryBucketIdx];
+		
 		toR = primaryBucket.getKVPair(key);
 				
 		// check to see if we had it in the primary block
@@ -112,7 +115,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		
 		int secondaryBucketIdx = getSecondaryBucket(primaryBucketIdx, rFunc, tag);
 		HortonHashBucket<K, V> secondaryBucket = buckets[secondaryBucketIdx];
-				
+		
 		toR = secondaryBucket.getKVPair(key);
 
 		return toR;
@@ -328,7 +331,6 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	public void dumpStats() {
 		System.out.println("Primary block gets: " + primaryBlockGets);
 		System.out.println("Secondary block gets: " + secondaryBlockGets);
-
 	}
 
 

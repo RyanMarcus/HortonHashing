@@ -43,7 +43,10 @@ public class HortonHashBucket<K, V> {
 	
 	public KVPair<K, V> getKVPair(K key) {
 		for (int i = (typeA ? 0 : 1); i < entries.length; i++) {
-			if (entries[i] != null && entries[i].key.equals(key))
+			if (entries[i] == null)
+				continue;
+			
+			if (entries[i] == key || entries[i].key.equals(key))
 				return entries[i];
 		}
 		
