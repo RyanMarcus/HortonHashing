@@ -10,17 +10,17 @@ public class HortonHashUtil {
 	
 	
 	public int primaryHash(Object o) {
-		return o.hashCode();
+		return Math.abs(o.hashCode());
 	}
 	
 	public int tagHash(Object o) {
 		// silly. replace.
-		return (new Integer(o.hashCode() * 18679)).hashCode();
+		return Math.abs((new Integer(o.hashCode() * 18679)).hashCode());
 	}
 	
 	public int rHashFunc(int bucketID, int slotID, int rFuncIdx) {
 		// this is very silly and we should do something else later
-		return new Integer(bucketID + (slotID+1) * salts[rFuncIdx % salts.length]).hashCode();
+		return Math.abs(new Integer(bucketID + (slotID+1) * salts[rFuncIdx % salts.length]).hashCode());
 	}
 	
 }

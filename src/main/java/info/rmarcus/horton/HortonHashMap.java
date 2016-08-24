@@ -38,12 +38,15 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 
 
 	@Override
+	public boolean containsKey(Object k) {
+		return get(k) != null;
+	}
+	
+	@Override
 	public V put(K key, V value) {
 		try {
 			return checkedPut(key, value);
 		} catch (HortonHashMapFullException e) {
-			System.out.println("Growing table from "  + buckets.size());
-
 			// double the number of buckets and rehash everything
 			Set<Entry<K, V>> data = entrySet();
 			V toR = get(key);
@@ -62,59 +65,76 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	}
 
 	@Override
-	public V get(Object k) {
-		V toR = null;
-
+	public V get(Object key) {
+		KVPair<K, V> toR = getKV(key);
+		
+		if (toR == null)
+			return null;
+		
+		return toR.value;
+	}
+	
+	private KVPair<K, V> getKV(Object k) {
+		KVPair<K, V> toR = null;
+		
 		@SuppressWarnings("unchecked")
 		K key = (K) k;
 
 		// check the primary bucket
 		int primaryBucketIdx = getPrimaryBucket(key);
 		HortonHashBucket<K, V> primaryBucket = buckets.get(primaryBucketIdx);
-		toR = primaryBucket.get(key);
-
-		// if this bucket doesn't have the key and it is
-		// type a (no redirect list), then we don't have the key
-		if (toR == null && primaryBucket.isTypeA())
-			return null;
-
+		toR = primaryBucket.getKVPair(key);
+		
 		// check to see if we had it in the primary block
 		if (toR != null)
 			return toR;
+		
+		// if this bucket doesn't have the key and it is
+		// type a (no redirect list), then we don't have the key
+		if (primaryBucket.isTypeA())
+			return null;
 
 		// now check the secondary block
 		int tag = getTag(key);
 		short rFunc = primaryBucket.getRedirectListEntry(tag);
-
+		
+		if (rFunc == -1)
+			return null;
+		
 		int secondaryBucketIdx = getSecondaryBucket(primaryBucketIdx, rFunc, tag);
 		HortonHashBucket<K, V> secondaryBucket = buckets.get(secondaryBucketIdx);
-
-		toR = secondaryBucket.get(key);
+		
+		toR = secondaryBucket.getKVPair(key);
 
 		return toR;
 
 
 	}
 
-	private V checkedPut(K key, V value) throws HortonHashMapFullException {
-		V toR = get(key);
+	private V checkedPut(K key, V value) throws HortonHashMapFullException {		
+		KVPair<K, V> toR = getKV(key);
+		
+		if (toR != null) {
+			V oldVal = toR.value;
+			toR.value = value;
+			return oldVal;
+		}
 
 		// first, we will get the index of the bucket indicated
 		// by the primary hash function. If there's space in that
 		// bucket, we will add this item as a primary entry.
 		int bucketIdx = getPrimaryBucket(key);
 		HortonHashBucket<K, V> primaryBucket = buckets.get(bucketIdx);
-
+				
 		if (primaryBucket.insertIfEmptyAvailable(key, value)) {
 			// if we inserted the value as a primary key, we are done!
-			return toR;
+			return null;
 		}
 
 		// try and make space in this bucket for the key.
 		try {
 			displaceItems(bucketIdx);
 		} catch (HortonHashMapFullException e) {
-			// TODO Auto-generated catch block
 			// this is the case where no items can be moved,
 			// so we need to insert this item as a secondary entry.
 
@@ -140,22 +160,21 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// insert, and, if we can't, say the hash map is full.
 			// doSecondaryInsert will throw if it is full
 			doSecondaryInsert(bucketIdx, key, value);
-			return toR;
+			return null;
 		}
 
 		// now that some items have been displaced, there is
 		// space to store the new item as a primary entry
 		primaryBucket.insertIfEmptyAvailable(key, value);
-
-
-		return toR;
+		
+		return null;
 	}
 
 
 	private void doSecondaryInsert(int bucketIdx, K key, V value) throws HortonHashMapFullException {
 		// first, compute the slot in the redirect table
 		int tagHash = getTag(key);
-
+		
 		HortonHashBucket<K, V> primaryBucket = buckets.get(bucketIdx);
 
 		// check to see if we have an entry in this position yet
@@ -168,10 +187,10 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			rFunc = findBestRHashFunc(bucketIdx, tagHash);
 			primaryBucket.setRedirectListEntry(tagHash, rFunc);
 		}
-
+		
 		int secondaryBucketIdx = getSecondaryBucket(bucketIdx, rFunc, tagHash);
 		HortonHashBucket<K, V> secondaryBucket = buckets.get(secondaryBucketIdx);
-
+		
 		if (!secondaryBucket.insertIfEmptyAvailable(key, value)) {
 			// the best secondary bucket was already full!
 			// try to displace some keys from it. if that fails,
@@ -179,7 +198,26 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 
 			// displaceItems will throw if it cannot move anything out
 			displaceItems(secondaryBucketIdx);
-			secondaryBucket.insertIfEmptyAvailable(key, value);
+			
+			// it is possible that displaceItems changed the rfunc we
+			// are using. check to see if that's the case...
+			if (rFunc != primaryBucket.getRedirectListEntry(tagHash)) {
+				// we changed the rfunc for the element we are currently 
+				// inserting! we can try one more time to insert into
+				// the new bucket that the rfunc gives us. If that doesn't
+				// work, we'll give up and say we are full.
+				rFunc = primaryBucket.getRedirectListEntry(tagHash);
+				secondaryBucketIdx = getSecondaryBucket(bucketIdx, rFunc, tagHash);
+				secondaryBucket = buckets.get(secondaryBucketIdx);
+			}
+			
+			if (!secondaryBucket.insertIfEmptyAvailable(key, value)) {
+				// if this fails, it is because we displaced keys from
+				// one secondary bucket into another, and that new secondary
+				// bucket is also full. Declare the hash table full.
+				throw new HortonHashMapFullException("Best items to displace used same redirect entry as item to insert, no space in new secondary block either.");
+			}
+
 
 		}
 
@@ -222,9 +260,12 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// and change the rFunc entry in their primary bucket
 			for (int itemIdx : e.getValue()) {
 				KVPair<K, V> kp = buckets.get(bucketIdx).getKVPair(itemIdx);
-				if (!buckets.get(newBucketIdx).insertIfEmptyAvailable(kp.key, kp.value))
+				// add the item to the new bucket
+				if (!buckets.get(newBucketIdx).insertIfEmptyAvailable(kp.key, kp.value)) 
 					throw new HortonHashMapRuntimeException("Could not insert into bucket that should've had empty slots when relocating secondary keys in bucket " + bucketIdx);
-
+				
+				// remove the item from the old bucket
+				buckets.get(bucketIdx).clearKVPair(itemIdx);
 			}
 
 			// we've moved the items, now change the entry.
@@ -237,11 +278,6 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	}
 
 	private short findBestRHashFunc(int bucketIdx, int slotIdx) {
-		/*System.out.println("primary = " + bucketIdx + ", slot = " + slotIdx);
-		for (short i = 0; i < HortonHashUtil.NUM_R_HASH_FUNCS; i++) {
-			System.out.println("R = " + i + " gives bucket " + getSecondaryBucket(bucketIdx, i, slotIdx));
-		}*/
-
 		return IntStream.range(0, HortonHashUtil.NUM_R_HASH_FUNCS)
 				.mapToObj(i -> i)
 				.max((a, b) -> {
@@ -275,20 +311,6 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	}
 
 
-	public static void main(String[] args) throws HortonHashMapFullException {
-		HortonHashMap<Integer, Integer> m = new HortonHashMap<Integer, Integer>(1, 5);
-
-		for (int i = 1; i < 100; i++) {
-			//System.out.println("Key: " + i);
-			m.put(i, i*5);
-			for (int j = 1; j <= i; j++) {
-				if (m.get(j) == null)
-					System.out.println("Lost key " + j);
-			}
-		}
-
-
-	}
 
 
 }

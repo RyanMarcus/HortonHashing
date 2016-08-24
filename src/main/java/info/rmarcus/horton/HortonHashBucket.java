@@ -39,12 +39,16 @@ public class HortonHashBucket<K, V> {
 	}
 	
 	public V get(K key) {
-		for (int i = (typeA ? 0 : 1); i < getCapacity(); i++) {
+		return getKVPair(key).value;
+	}
+	
+	public KVPair<K, V> getKVPair(K key) {
+		for (int i = (typeA ? 0 : 1); i < entries.size(); i++) {
 			if (entries.get(i) == null)
 				continue; 
 			
 			if (entries.get(i).key.equals(key))
-				return entries.get(i).value;
+				return entries.get(i);
 		}
 		
 		return null;
@@ -99,6 +103,10 @@ public class HortonHashBucket<K, V> {
 				.filter(kv -> kv.key != null)
 				.map(kv -> new SimpleEntry<K, V>(kv.key, kv.value))
 				.collect(Collectors.toSet());
+	}
+
+	public void clearKVPair(int itemIdx) {
+		entries.set(itemIdx, null);
 	}
 	
 
