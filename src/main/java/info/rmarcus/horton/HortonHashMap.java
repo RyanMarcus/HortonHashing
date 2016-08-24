@@ -284,6 +284,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 				buckets[bucketIdx].clearKVPair(itemIdx);
 			}
 			
+			buckets[bucketIdx].shuffleKeysBack();
 
 			// we've moved the items, now change the entry.
 			buckets[e.getKey()].setRedirectListEntry(slot, bestRfunc);

@@ -17,15 +17,15 @@ public class HortonHashBucket<K, V> {
 	}
 
 
-	
+
 	public int getNumEmptySlots() {
 		int toR = 0;
 		for (int i = 0; i < entries.length; i++)
 			if (entries[i] == null) toR++;
-		
+
 		return toR;
 	}
-	
+
 	public boolean insertIfEmptyAvailable(K key, V value) {
 		for (int i = 0; i < entries.length; i++) {
 			if (entries[i] == null) {
@@ -33,33 +33,49 @@ public class HortonHashBucket<K, V> {
 				return true;
 			}
 		}
-		
+
 		return false;
 	}
-	
+
+	void shuffleKeysBack() {
+		for (int i = 0; i < entries.length-1; i++){
+			if (entries[i] != null)
+				continue;
+			
+			for (int j = i + 1; j < entries.length; j++) {
+				if (entries[j] == null)
+					continue;
+				
+				entries[i] = entries[j];
+				entries[j] = null;
+				break;
+			}
+		}
+	}
+
 	public V get(K key) {
 		return getKVPair(key).value;
 	}
-	
+
 	public KVPair<K, V> getKVPair(K key) {
 		for (int i = (typeA ? 0 : 1); i < entries.length; i++) {
 			if (entries[i] == null)
-				continue;
-			
+				return null;
+
 			if (entries[i] == key || entries[i].key.equals(key))
 				return entries[i];
 		}
-		
+
 		return null;
 	}
-	
+
 	public KVPair<K, V> convertToTypeB() {
 		KVPair<K, V> toR = entries[0];
 		entries[0] = new RedirectList<K, V>();
 		typeA = false;
 		return toR;
 	}
-	
+
 	public void revertToTypeA(KVPair<K, V> toAddBack) {
 		entries[0] = toAddBack;
 		typeA = true;
@@ -68,11 +84,11 @@ public class HortonHashBucket<K, V> {
 	public KVPair<K, V> getKVPair(int idx) {
 		return (typeA ? entries[idx] : entries[idx + 1]);
 	}
-	
+
 	public K getKey(int idx) {
 		return getKVPair(idx).key;
 	}
-	
+
 	public int getCapacity() {
 		return (typeA ? entries.length : entries.length - 1);
 	}
@@ -80,18 +96,18 @@ public class HortonHashBucket<K, V> {
 	public boolean isTypeA() {
 		return typeA;
 	}
-	
+
 	public void setRedirectListEntry(int idx, byte value) {
 		if (typeA)
 			throw new HortonHashMapRuntimeException("Trying to set a redirect table entry on a type A bucket");
-		
+
 		((RedirectList<K, V>) entries[0]).redirectList[idx] = value;
 	}
-	
+
 	public byte getRedirectListEntry(int idx) {
 		if (typeA)
 			throw new HortonHashMapRuntimeException("Trying to set a redirect table entry on a type A bucket");
-	
+
 		return ((RedirectList<K, V>) entries[0]).redirectList[idx];
 
 	}
@@ -107,11 +123,11 @@ public class HortonHashBucket<K, V> {
 	public void clearKVPair(int itemIdx) {
 		entries[itemIdx] = null;
 	}
-	
-	
+
+
 	public String toString() {
 		return "<typeA: " + typeA + " buckets: " + Arrays.toString(entries) + ">";
 	}
-	
+
 
 }

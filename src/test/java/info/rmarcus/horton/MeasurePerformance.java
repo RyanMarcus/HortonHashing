@@ -10,7 +10,7 @@ public class MeasurePerformance {
 	private static final int NUM_LOOKUPS = 2000000;
 	
 	public static void main(String[] args) {
-		HortonHashMap<Integer, Integer> m = new HortonHashMap<>(NUM_INSERTS/5, 5);
+		HortonHashMap<Integer, Integer> m = new HortonHashMap<>(NUM_INSERTS/2, 5);
 		Map<Integer, Integer> m2 = new HashMap<>(200000);
 		Random r;
 		long t;
@@ -26,6 +26,7 @@ public class MeasurePerformance {
 		t = System.currentTimeMillis() - t;
 		System.out.println("Inserts for HashMap: " + t);
 		
+		System.gc();
 		
 		r = new Random(5);
 		t = System.currentTimeMillis();
@@ -35,6 +36,8 @@ public class MeasurePerformance {
 		t = System.currentTimeMillis() - t;
 		System.out.println("Inserts for Horton: " + t);
 		
+		System.gc();
+		
 		r = new Random(5);
 		t = System.currentTimeMillis();
 		for (int i = 0; i < NUM_LOOKUPS; i++) {
@@ -43,6 +46,7 @@ public class MeasurePerformance {
 		t = System.currentTimeMillis() - t;
 		System.out.println("Lookups for HashMap: " + t);
 		
+		System.gc();
 		
 		r = new Random(5);
 		t = System.currentTimeMillis();
