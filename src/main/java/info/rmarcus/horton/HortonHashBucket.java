@@ -108,5 +108,10 @@ public class HortonHashBucket<K, V> {
 		entries[itemIdx] = null;
 	}
 	
+	
+	public String toString() {
+		return "<typeA: " + typeA + " buckets: " + Arrays.toString(entries) + ">";
+	}
+	
 
 }

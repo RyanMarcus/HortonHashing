@@ -15,5 +15,10 @@ public class RedirectList<K, V> extends KVPair<K, V> {
 		}
 	}
 	
+	@Override
+	public String toString() {
+		return "(RL)";
+	}
+	
 	
 }

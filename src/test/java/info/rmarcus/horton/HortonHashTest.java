@@ -2,6 +2,7 @@ package info.rmarcus.horton;
 
 import static org.junit.Assert.assertTrue;
 
+import java.io.FileNotFoundException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -12,13 +13,13 @@ import org.junit.Test;
 public class HortonHashTest {
 
 	@Test
-	public void insertTest1() {
+	public void insertTestBucketSize10() {
 		Map<Integer, Integer> m = new HortonHashMap<>(1, 10);
 		Map<Integer, Integer> m2 = new HashMap<>();
 		
 		Random r = new Random(5);
 		
-		for (int i = 0; i < 200000; i++) {
+		for (int i = 0; i < 2000000; i++) {
 			int k = r.nextInt();
 			int v = r.nextInt();
 			
@@ -31,13 +32,14 @@ public class HortonHashTest {
 	}
 	
 	@Test
-	public void insertTest2() {
-		Map<Integer, Integer> m = new HortonHashMap<>(1, 100);
+	public void insertTestBucketSize16() throws FileNotFoundException {		
+		Map<Integer, Integer> m = new HortonHashMap<>(1, 16);
 		Map<Integer, Integer> m2 = new HashMap<>();
 		
 		Random r = new Random(5);
+	
 		
-		for (int i = 0; i < 200000; i++) {
+		for (int i = 0; i < 800000; i++) {
 			int k = r.nextInt();
 			int v = r.nextInt();
 			
@@ -49,13 +51,13 @@ public class HortonHashTest {
 	}
 	
 	@Test
-	public void insertTest3() {
+	public void insertTestBounded() {
 		Map<Integer, Integer> m = new HortonHashMap<>(1, 10);
 		Map<Integer, Integer> m2 = new HashMap<>();
 		
 		Random r = new Random(5);
 		
-		for (int i = 0; i < 200000; i++) {
+		for (int i = 0; i < 2000000; i++) {
 			int k = r.nextInt(100);
 			int v = r.nextInt();
 			

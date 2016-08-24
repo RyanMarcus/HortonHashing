@@ -8,4 +8,8 @@ public class KVPair<K, V> {
 	
 	public K key;
 	public V value;
+	
+	public String toString() {
+		return "(" + key + ", " + value + ")";
+	}
 }

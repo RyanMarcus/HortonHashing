@@ -12,10 +12,12 @@ import java.util.stream.IntStream;
 public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 	private List<HortonHashBucket<K, V>> buckets;
 	private HortonHashUtil hhu;
+	private int capacity;
 
 	public HortonHashMap(int numBuckets, int bucketCapacity) {
 		init(numBuckets, bucketCapacity);
 		hhu = new HortonHashUtil();
+		this.capacity = bucketCapacity;
 	}
 
 	private void init(int numBuckets, int bucketCapacity) {
@@ -50,7 +52,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// double the number of buckets and rehash everything
 			Set<Entry<K, V>> data = entrySet();
 			V toR = get(key);
-			init(buckets.size() * 2, buckets.get(0).getCapacity());
+			init(buckets.size() * 2, capacity);
 			try {
 				for (Entry<K, V> en : data) {
 					checkedPut(en.getKey(), en.getValue());
@@ -84,7 +86,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		int primaryBucketIdx = getPrimaryBucket(key);
 		HortonHashBucket<K, V> primaryBucket = buckets.get(primaryBucketIdx);
 		toR = primaryBucket.getKVPair(key);
-		
+				
 		// check to see if we had it in the primary block
 		if (toR != null)
 			return toR;
@@ -103,7 +105,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		
 		int secondaryBucketIdx = getSecondaryBucket(primaryBucketIdx, rFunc, tag);
 		HortonHashBucket<K, V> secondaryBucket = buckets.get(secondaryBucketIdx);
-		
+				
 		toR = secondaryBucket.getKVPair(key);
 
 		return toR;
@@ -111,7 +113,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 
 	}
 
-	private V checkedPut(K key, V value) throws HortonHashMapFullException {		
+	private V checkedPut(K key, V value) throws HortonHashMapFullException {			
 		KVPair<K, V> toR = getKV(key);
 		
 		if (toR != null) {
@@ -125,19 +127,19 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		// bucket, we will add this item as a primary entry.
 		int bucketIdx = getPrimaryBucket(key);
 		HortonHashBucket<K, V> primaryBucket = buckets.get(bucketIdx);
-				
+						
 		if (primaryBucket.insertIfEmptyAvailable(key, value)) {
 			// if we inserted the value as a primary key, we are done!
 			return null;
 		}
-
+				
 		// try and make space in this bucket for the key.
 		try {
 			displaceItems(bucketIdx);
 		} catch (HortonHashMapFullException e) {
 			// this is the case where no items can be moved,
 			// so we need to insert this item as a secondary entry.
-
+			
 			// if the item is type A, we need to convert it into a 
 			// type B bucket and then do two secondary inserts, one for
 			// the old item and one for the current item.
@@ -159,13 +161,17 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// items that can be displaced. try to do a secondary
 			// insert, and, if we can't, say the hash map is full.
 			// doSecondaryInsert will throw if it is full
+			//System.out.println("Inserting key as a secondary item");
 			doSecondaryInsert(bucketIdx, key, value);
 			return null;
 		}
 
+
 		// now that some items have been displaced, there is
 		// space to store the new item as a primary entry
-		primaryBucket.insertIfEmptyAvailable(key, value);
+		if (!primaryBucket.insertIfEmptyAvailable(key, value)) {
+			throw new HortonHashMapRuntimeException("Could not place value into primary bucket even after displacement moved items out");
+		}
 		
 		return null;
 	}
@@ -230,7 +236,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		Map<Integer, Set<Integer>> primaryBuckets = new HashMap<>();
 
 		HortonHashBucket<K, V> b = buckets.get(bucketIdx);
-		for (int i = (b.isTypeA() ? 0 : 1); i < b.getCapacity(); i++) {
+		for (int i = 0; i < b.getCapacity(); i++) {
 			// never displace a primary entry
 			if (isPrimaryEntry(bucketIdx, i))
 				continue;
@@ -255,7 +261,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// we would need to move there.
 			if (emptySlots < e.getValue().size())
 				continue;
-
+			
 			// now move the items in e to this new bucket,
 			// and change the rFunc entry in their primary bucket
 			for (int itemIdx : e.getValue()) {
@@ -267,6 +273,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 				// remove the item from the old bucket
 				buckets.get(bucketIdx).clearKVPair(itemIdx);
 			}
+			
 
 			// we've moved the items, now change the entry.
 			buckets.get(e.getKey()).setRedirectListEntry(slot, bestRfunc);
