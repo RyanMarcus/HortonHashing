@@ -43,10 +43,7 @@ public class HortonHashBucket<K, V> {
 	
 	public KVPair<K, V> getKVPair(K key) {
 		for (int i = (typeA ? 0 : 1); i < entries.length; i++) {
-			if (entries[i] == null)
-				continue; 
-			
-			if (entries[i].key.equals(key))
+			if (entries[i] != null && entries[i].key.equals(key))
 				return entries[i];
 		}
 		
@@ -81,14 +78,14 @@ public class HortonHashBucket<K, V> {
 		return typeA;
 	}
 	
-	public void setRedirectListEntry(int idx, short value) {
+	public void setRedirectListEntry(int idx, byte value) {
 		if (typeA)
 			throw new HortonHashMapRuntimeException("Trying to set a redirect table entry on a type A bucket");
 		
 		((RedirectList<K, V>) entries[0]).redirectList[idx] = value;
 	}
 	
-	public short getRedirectListEntry(int idx) {
+	public byte getRedirectListEntry(int idx) {
 		if (typeA)
 			throw new HortonHashMapRuntimeException("Trying to set a redirect table entry on a type A bucket");
 	

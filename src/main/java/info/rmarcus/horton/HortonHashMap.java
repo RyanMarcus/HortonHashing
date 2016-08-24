@@ -1,18 +1,19 @@
 package info.rmarcus.horton;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
 public class HortonHashMap<K, V> extends AbstractMap<K, V> {
-	private List<HortonHashBucket<K, V>> buckets;
+	private HortonHashBucket<K, V>[] buckets;
 	private HortonHashUtil hhu;
 	private int capacity;
+	
+	private long primaryBlockGets = 0;
+	private long secondaryBlockGets = 0;
 
 	public HortonHashMap(int numBuckets, int bucketCapacity) {
 		init(numBuckets, bucketCapacity);
@@ -20,11 +21,12 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		this.capacity = bucketCapacity;
 	}
 
+	@SuppressWarnings("unchecked")
 	private void init(int numBuckets, int bucketCapacity) {
-		buckets = new ArrayList<>(numBuckets);
+		buckets = new HortonHashBucket[numBuckets];
 
 		for (int i = 0; i < numBuckets; i++)
-			buckets.add(new HortonHashBucket<K, V>(bucketCapacity));
+			buckets[i] = new HortonHashBucket<K, V>(bucketCapacity);
 	}
 
 	@Override
@@ -52,7 +54,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// double the number of buckets and rehash everything
 			Set<Entry<K, V>> data = entrySet();
 			V toR = get(key);
-			init(buckets.size() * 2, capacity);
+			init(buckets.length * 2, capacity);
 			try {
 				for (Entry<K, V> en : data) {
 					checkedPut(en.getKey(), en.getValue());
@@ -84,18 +86,23 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 
 		// check the primary bucket
 		int primaryBucketIdx = getPrimaryBucket(key);
-		HortonHashBucket<K, V> primaryBucket = buckets.get(primaryBucketIdx);
+		HortonHashBucket<K, V> primaryBucket = buckets[primaryBucketIdx];
 		toR = primaryBucket.getKVPair(key);
 				
 		// check to see if we had it in the primary block
-		if (toR != null)
+		if (toR != null) {
+			primaryBlockGets++;
 			return toR;
+		}
 		
 		// if this bucket doesn't have the key and it is
 		// type a (no redirect list), then we don't have the key
-		if (primaryBucket.isTypeA())
+		if (primaryBucket.isTypeA()) {
+			primaryBlockGets++;
 			return null;
+		}
 
+		secondaryBlockGets++;
 		// now check the secondary block
 		int tag = getTag(key);
 		short rFunc = primaryBucket.getRedirectListEntry(tag);
@@ -104,7 +111,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			return null;
 		
 		int secondaryBucketIdx = getSecondaryBucket(primaryBucketIdx, rFunc, tag);
-		HortonHashBucket<K, V> secondaryBucket = buckets.get(secondaryBucketIdx);
+		HortonHashBucket<K, V> secondaryBucket = buckets[secondaryBucketIdx];
 				
 		toR = secondaryBucket.getKVPair(key);
 
@@ -126,7 +133,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		// by the primary hash function. If there's space in that
 		// bucket, we will add this item as a primary entry.
 		int bucketIdx = getPrimaryBucket(key);
-		HortonHashBucket<K, V> primaryBucket = buckets.get(bucketIdx);
+		HortonHashBucket<K, V> primaryBucket = buckets[bucketIdx];
 						
 		if (primaryBucket.insertIfEmptyAvailable(key, value)) {
 			// if we inserted the value as a primary key, we are done!
@@ -181,12 +188,12 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		// first, compute the slot in the redirect table
 		int tagHash = getTag(key);
 		
-		HortonHashBucket<K, V> primaryBucket = buckets.get(bucketIdx);
+		HortonHashBucket<K, V> primaryBucket = buckets[bucketIdx];
 
 		// check to see if we have an entry in this position yet
 		// if we do, we have to use that as our secondary block.
 		// if not, we can search for the best (lowest items) r fucn
-		short rFunc = primaryBucket.getRedirectListEntry(tagHash);
+		byte rFunc = primaryBucket.getRedirectListEntry(tagHash);
 
 		if (rFunc == -1) {
 			// select the best rFunc
@@ -195,7 +202,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		}
 		
 		int secondaryBucketIdx = getSecondaryBucket(bucketIdx, rFunc, tagHash);
-		HortonHashBucket<K, V> secondaryBucket = buckets.get(secondaryBucketIdx);
+		HortonHashBucket<K, V> secondaryBucket = buckets[secondaryBucketIdx];
 		
 		if (!secondaryBucket.insertIfEmptyAvailable(key, value)) {
 			// the best secondary bucket was already full!
@@ -214,7 +221,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 				// work, we'll give up and say we are full.
 				rFunc = primaryBucket.getRedirectListEntry(tagHash);
 				secondaryBucketIdx = getSecondaryBucket(bucketIdx, rFunc, tagHash);
-				secondaryBucket = buckets.get(secondaryBucketIdx);
+				secondaryBucket = buckets[secondaryBucketIdx];
 			}
 			
 			if (!secondaryBucket.insertIfEmptyAvailable(key, value)) {
@@ -235,7 +242,7 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		// the bucket w/ index bucketIdx
 		Map<Integer, Set<Integer>> primaryBuckets = new HashMap<>();
 
-		HortonHashBucket<K, V> b = buckets.get(bucketIdx);
+		HortonHashBucket<K, V> b = buckets[bucketIdx];
 		for (int i = 0; i < b.getCapacity(); i++) {
 			// never displace a primary entry
 			if (isPrimaryEntry(bucketIdx, i))
@@ -250,11 +257,11 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		for (Entry<Integer, Set<Integer>> e : primaryBuckets.entrySet()) {
 			// find the best new rFunc for these entries
 			int reprIdx = e.getValue().iterator().next();
-			K reprK = buckets.get(bucketIdx).getKey(reprIdx);
+			K reprK = buckets[bucketIdx].getKey(reprIdx);
 			int slot = getTag(reprK);
-			short bestRfunc = findBestRHashFunc(e.getKey(), slot);
+			byte bestRfunc = findBestRHashFunc(e.getKey(), slot);
 			int newBucketIdx = getSecondaryBucket(e.getKey(), bestRfunc, slot);
-			int emptySlots = buckets.get(newBucketIdx).getNumEmptySlots();
+			int emptySlots = buckets[newBucketIdx].getNumEmptySlots();
 
 			// make sure that switching to this new rFunc will give us
 			// a bucket with enough empty places for all the keys
@@ -265,18 +272,18 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 			// now move the items in e to this new bucket,
 			// and change the rFunc entry in their primary bucket
 			for (int itemIdx : e.getValue()) {
-				KVPair<K, V> kp = buckets.get(bucketIdx).getKVPair(itemIdx);
+				KVPair<K, V> kp = buckets[bucketIdx].getKVPair(itemIdx);
 				// add the item to the new bucket
-				if (!buckets.get(newBucketIdx).insertIfEmptyAvailable(kp.key, kp.value)) 
+				if (!buckets[newBucketIdx].insertIfEmptyAvailable(kp.key, kp.value)) 
 					throw new HortonHashMapRuntimeException("Could not insert into bucket that should've had empty slots when relocating secondary keys in bucket " + bucketIdx);
 				
 				// remove the item from the old bucket
-				buckets.get(bucketIdx).clearKVPair(itemIdx);
+				buckets[bucketIdx].clearKVPair(itemIdx);
 			}
 			
 
 			// we've moved the items, now change the entry.
-			buckets.get(e.getKey()).setRedirectListEntry(slot, bestRfunc);
+			buckets[e.getKey()].setRedirectListEntry(slot, bestRfunc);
 
 			return;
 		}
@@ -284,32 +291,32 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		throw new HortonHashMapFullException("Could not find any keys that could be moved out of bucket " + bucketIdx);
 	}
 
-	private short findBestRHashFunc(int bucketIdx, int slotIdx) {
+	private byte findBestRHashFunc(int bucketIdx, int slotIdx) {
 		return IntStream.range(0, HortonHashUtil.NUM_R_HASH_FUNCS)
 				.mapToObj(i -> i)
 				.max((a, b) -> {
 					int b1 = getSecondaryBucket(bucketIdx, a.shortValue(), slotIdx);
 					int b2 = getSecondaryBucket(bucketIdx, b.shortValue(), slotIdx);
 
-					return buckets.get(b1).getNumEmptySlots() -
-							buckets.get(b2).getNumEmptySlots();
-				}).get().shortValue();
+					return buckets[b1].getNumEmptySlots() -
+							buckets[b2].getNumEmptySlots();
+				}).get().byteValue();
 	}
 
 	private boolean isPrimaryEntry(int bucketIdx, int itemIdx) {
-		return getPrimaryBucket(buckets.get(bucketIdx).getKey(itemIdx)) == bucketIdx;
+		return getPrimaryBucket(buckets[bucketIdx].getKey(itemIdx)) == bucketIdx;
 	}
 
 	private int getPrimaryBucket(K key) {
-		return hhu.primaryHash(key) % buckets.size();
+		return hhu.primaryHash(key) % buckets.length;
 	}
 
 	private int getPrimaryBucket(int bucketIdx, int itemIdx) {
-		return getPrimaryBucket(buckets.get(bucketIdx).getKey(itemIdx));
+		return getPrimaryBucket(buckets[bucketIdx].getKey(itemIdx));
 	}
 
 	private int getSecondaryBucket(int primaryBucketIdx, short rFuncIdx, int slotIdx) {
-		return hhu.rHashFunc(primaryBucketIdx, slotIdx, rFuncIdx) % buckets.size();
+		return hhu.rHashFunc(primaryBucketIdx, slotIdx, rFuncIdx) % buckets.length;
 	}
 
 
@@ -317,6 +324,12 @@ public class HortonHashMap<K, V> extends AbstractMap<K, V> {
 		return hhu.tagHash(o) % RedirectList.REDIRECT_TABLE_SIZE;
 	}
 
+	
+	public void dumpStats() {
+		System.out.println("Primary block gets: " + primaryBlockGets);
+		System.out.println("Secondary block gets: " + secondaryBlockGets);
+
+	}
 
 
 

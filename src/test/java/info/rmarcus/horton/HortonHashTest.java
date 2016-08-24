@@ -19,7 +19,7 @@ public class HortonHashTest {
 		
 		Random r = new Random(5);
 		
-		for (int i = 0; i < 2000000; i++) {
+		for (int i = 0; i < 800000; i++) {
 			int k = r.nextInt();
 			int v = r.nextInt();
 			
@@ -34,6 +34,25 @@ public class HortonHashTest {
 	@Test
 	public void insertTestBucketSize16() throws FileNotFoundException {		
 		Map<Integer, Integer> m = new HortonHashMap<>(1, 16);
+		Map<Integer, Integer> m2 = new HashMap<>();
+		
+		Random r = new Random(5);
+	
+		
+		for (int i = 0; i < 800000; i++) {
+			int k = r.nextInt();
+			int v = r.nextInt();
+			
+			m.put(k, v);
+			m2.put(k, v);
+		}
+		
+		checkMapsEqual(m, m2);
+	}
+	
+	@Test
+	public void insertTestBucketSize32() throws FileNotFoundException {		
+		Map<Integer, Integer> m = new HortonHashMap<>(1, 32);
 		Map<Integer, Integer> m2 = new HashMap<>();
 		
 		Random r = new Random(5);
